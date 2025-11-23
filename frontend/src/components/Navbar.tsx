@@ -46,6 +46,10 @@ export function Navbar() {
             Home
           </Link>
 
+          <Link to="/tools" className="nav-link" onClick={() => setIsMenuOpen(false)}>
+            Tools
+          </Link>
+
           <a href="#pricing" className="nav-link" onClick={(e) => {
             scrollToPricing(e);
             setIsMenuOpen(false);

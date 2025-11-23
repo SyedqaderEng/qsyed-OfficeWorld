@@ -1,0 +1,356 @@
+/* Tool Settings Styles */
+.tool-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-group.indent {
+  margin-left: 32px;
+  padding-left: 16px;
+  border-left: 3px solid #e5e7eb;
+}
+
+.setting-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.setting-input,
+.setting-select {
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.setting-input:focus,
+.setting-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.setting-hint {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* Radio Options */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.radio-option:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.radio-option input[type='radio'] {
+  cursor: pointer;
+}
+
+.radio-option span {
+  font-size: 0.95rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* Checkbox */
+.setting-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.setting-checkbox:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.setting-checkbox input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.setting-checkbox span {
+  font-size: 0.95rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* Quality Cards for Compression */
+.quality-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.quality-card {
+  padding: 20px;
+  background: white;
+  border: 3px solid #e5e7eb;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.quality-card:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2);
+}
+
+.quality-card.selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.quality-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 8px;
+  text-transform: capitalize;
+}
+
+.quality-dpi {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.quality-reduction {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #10b981;
+}
+
+/* Settings Preview */
+.settings-preview {
+  padding: 20px;
+  background: #f0f4ff;
+  border-radius: 8px;
+  border: 2px solid #667eea;
+}
+
+.settings-preview h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.preview-content {
+  font-size: 0.95rem;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.preview-content p {
+  margin: 8px 0;
+}
+
+.preview-content strong {
+  color: #667eea;
+  font-weight: 600;
+}
+
+/* Compression Preview */
+.compression-preview .preview-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+.compression-stat {
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #667eea;
+}
+
+/* Language Grid for OCR */
+.language-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.language-option {
+  padding: 16px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.language-option:hover {
+  border-color: #667eea;
+  background: #f0f4ff;
+}
+
+.language-option input[type='radio'] {
+  display: none;
+}
+
+.language-option.selected {
+  border-color: #667eea;
+  background: #f0f4ff;
+  font-weight: 600;
+  color: #667eea;
+}
+
+/* Format Options for Convert */
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.format-card {
+  padding: 24px;
+  background: white;
+  border: 3px solid #e5e7eb;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.format-card:hover {
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2);
+}
+
+.format-card.selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.format-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.format-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.format-ext {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-family: monospace;
+}
+
+/* OCR Info Box */
+.ocr-info-box {
+  padding: 20px;
+  background: #f0f9ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  margin-top: 24px;
+}
+
+.ocr-info-box h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e40af;
+  margin-bottom: 12px;
+}
+
+.ocr-info-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ocr-info-box li {
+  font-size: 0.875rem;
+  color: #1e40af;
+  padding: 6px 0;
+  padding-left: 24px;
+  position: relative;
+}
+
+.ocr-info-box li::before {
+  content: '•';
+  position: absolute;
+  left: 8px;
+  font-weight: bold;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .quality-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .compression-preview .preview-content {
+    grid-template-columns: 1fr;
+  }
+
+  .language-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .format-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
