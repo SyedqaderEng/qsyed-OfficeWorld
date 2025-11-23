@@ -89,11 +89,19 @@ frontend/
 
 ## Environment Variables
 
-Create a `.env` file:
+Create a `.env` file (or copy from `.env.example`):
 
 ```env
+# Backend API URL
 VITE_API_URL=http://localhost:3000/api
+
+# Disable auth for local development (backend doesn't require authentication yet)
+VITE_REQUIRE_AUTH=false
 ```
+
+**Options:**
+- `VITE_API_URL`: Your backend API base URL (default: `http://localhost:3000/api`)
+- `VITE_REQUIRE_AUTH`: Set to `false` for local dev without authentication, `true` when backend has auth (default: `true`)
 
 ## Available Scripts
 

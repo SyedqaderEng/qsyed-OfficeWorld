@@ -53,6 +53,10 @@ export function Navbar() {
             Pricing
           </a>
 
+          <Link to="/test" className="nav-link" onClick={() => setIsMenuOpen(false)}>
+            🧪 Test API
+          </Link>
+
           {isAuthenticated ? (
             <>
               <Link to="/dashboard" className="nav-link" onClick={() => setIsMenuOpen(false)}>
