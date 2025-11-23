@@ -36,12 +36,20 @@ apiClient.interceptors.request.use(
       console.log('   Params:', config.params);
     }
 
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('   ✅ Auth token attached');
+    // Only attach token if backend requires authentication
+    // Set VITE_REQUIRE_AUTH=false in .env for local development without auth
+    const requireAuth = import.meta.env.VITE_REQUIRE_AUTH !== 'false';
+
+    if (requireAuth) {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log('   ✅ Auth token attached');
+      } else {
+        console.log('   ⚠️  No auth token found (backend may reject request)');
+      }
     } else {
-      console.log('   ⚠️  No auth token found');
+      console.log('   ℹ️  Auth disabled (VITE_REQUIRE_AUTH=false)');
     }
 
     console.log('---');
