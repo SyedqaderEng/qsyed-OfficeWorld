@@ -373,6 +373,106 @@
   font-size: 0.95rem;
 }
 
+/* Processing State Indicator */
+.processing-state-indicator {
+  margin-bottom: 32px;
+  padding: 24px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+}
+
+.state-steps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  padding: 20px 0;
+}
+
+.state-steps::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #e5e7eb;
+  transform: translateY(-50%);
+  z-index: 0;
+}
+
+.state-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.state-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid #e5e7eb;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.state-step.active .state-dot {
+  background: #667eea;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+  animation: pulse 2s infinite;
+}
+
+.state-step.completed .state-dot {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.state-step.completed .state-dot::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.state-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: capitalize;
+  text-align: center;
+  max-width: 100px;
+}
+
+.state-step.active .state-label {
+  color: #667eea;
+  font-weight: 700;
+}
+
+.state-step.completed .state-label {
+  color: #10b981;
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(102, 126, 234, 0.1);
+  }
+}
+
 /* Complete */
 .success-icon {
   font-size: 5rem;
@@ -649,5 +749,31 @@
 
   .complete-info {
     grid-template-columns: 1fr;
+  }
+
+  .state-steps {
+    flex-direction: column;
+    padding: 16px 0;
+  }
+
+  .state-steps::before {
+    display: none;
+  }
+
+  .state-step {
+    flex-direction: row;
+    justify-content: flex-start;
+    width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .state-dot {
+    margin-bottom: 0;
+    margin-right: 12px;
+  }
+
+  .state-label {
+    text-align: left;
+    max-width: none;
   }
 }

@@ -1,38 +1,47 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useToast } from '../../components/Toast';
 import { ProgressBar, StepIndicator } from '../../components/ProgressBar';
-import { PageGrid, Page } from '../../components/PageGrid';
 import { validateFile, formatFileSize } from '../../utils/fileValidation';
 import { classifyError, logError, isRetryable, getRetryDelay, DetailedError, RetryStrategy } from '../../utils/errorHandling';
 import { uploadFile } from '../../api/upload';
-import { processTool } from '../../api/tools';
-import { pollJobStatus } from '../../api/jobs';
-import { downloadFile } from '../../api/download';
+import { apiClient } from '../../api/client';
 import './CompletePDFToWord.css';
 
-type WorkflowStep = 'intake' | 'preview' | 'configure' | 'processing' | 'complete';
+type WorkflowStep = 'upload' | 'configure' | 'processing' | 'complete';
+
+type ProcessingState = 'queued' | 'processing' | 'ocr' | 'converting' | 'finalizing' | 'done' | 'failed';
+
+interface StatusResponse {
+  requestId: string;
+  state: ProcessingState;
+  progress: number;
+  message: string;
+  outputFileToken?: string;
+  error?: string;
+}
 
 export function CompletePDFToWordPage() {
-  const [step, setStep] = useState<WorkflowStep>('intake');
+  const [step, setStep] = useState<WorkflowStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [fileId, setFileId] = useState<string | null>(null);
-  const [pages, setPages] = useState<Page[]>([]);
-  const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
+  const [fileMeta, setFileMeta] = useState<any>(null);
   const [isDragging, setIsDragging] = useState(false);
 
   // Settings
-  const [outputFormat, setOutputFormat] = useState<'docx' | 'doc'>('docx');
   const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [ocrLanguage, setOcrLanguage] = useState('eng');
   const [preserveLayout, setPreserveLayout] = useState(true);
-  const [includeImages, setIncludeImages] = useState(true);
-  const [pageRange, setPageRange] = useState<'all' | 'selected'>('all');
+  const [outputFormat, setOutputFormat] = useState<'docx' | 'doc'>('docx');
+  const [password, setPassword] = useState('');
 
   // Processing state
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [processingState, setProcessingState] = useState<ProcessingState>('queued');
   const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState('');
-  const [outputFileId, setOutputFileId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [outputFileToken, setOutputFileToken] = useState<string | null>(null);
   const [error, setError] = useState<DetailedError | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
 
@@ -40,8 +49,33 @@ export function CompletePDFToWordPage() {
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
-  const steps = ['Select File', 'Preview & Select Pages', 'Configure Options', 'Processing', 'Download'];
-  const currentStepIndex = ['intake', 'preview', 'configure', 'processing', 'complete'].indexOf(step);
+  const steps = ['Upload PDF', 'Configure Options', 'Converting', 'Download'];
+  const currentStepIndex = ['upload', 'configure', 'processing', 'complete'].indexOf(step);
+
+  const languages = [
+    { code: 'eng', name: 'English' },
+    { code: 'spa', name: 'Spanish' },
+    { code: 'fra', name: 'French' },
+    { code: 'deu', name: 'German' },
+    { code: 'ita', name: 'Italian' },
+    { code: 'por', name: 'Portuguese' },
+    { code: 'ara', name: 'Arabic' },
+    { code: 'rus', name: 'Russian' },
+    { code: 'chi_sim', name: 'Chinese (Simplified)' },
+    { code: 'jpn', name: 'Japanese' },
+    { code: 'kor', name: 'Korean' },
+    { code: 'hin', name: 'Hindi' },
+  ];
+
+  const stateLabels: Record<ProcessingState, string> = {
+    queued: 'Queued - Waiting for processing...',
+    processing: 'Processing your PDF...',
+    ocr: 'Performing OCR text extraction...',
+    converting: 'Converting to Word format...',
+    finalizing: 'Finalizing document...',
+    done: 'Conversion complete!',
+    failed: 'Conversion failed',
+  };
 
   /**
    * Handle drag events
@@ -77,7 +111,7 @@ export function CompletePDFToWordPage() {
   }, []);
 
   /**
-   * Handle file selection
+   * Handle file input change
    */
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -86,13 +120,14 @@ export function CompletePDFToWordPage() {
   };
 
   /**
-   * Validate and process selected file
+   * Step 1: Validate and upload file
    */
   const handleFileSelected = async (selectedFile: File) => {
     console.log('\n📁 FILE SELECTED:', selectedFile.name);
     setError(null);
 
     // Validate file
+    console.log('🔍 Validating file...');
     const validation = await validateFile(selectedFile, ['.pdf']);
 
     if (!validation.isValid) {
@@ -122,12 +157,12 @@ export function CompletePDFToWordPage() {
     setFile(selectedFile);
     toast.showSuccess('File Validated', `${selectedFile.name} is ready for upload`);
 
-    // Auto-proceed to upload
+    // Auto-upload
     await handleUpload(selectedFile);
   };
 
   /**
-   * Upload file with retry
+   * Upload file to backend
    */
   const handleUpload = async (fileToUpload: File, attemptNumber: number = 0) => {
     setUploading(true);
@@ -135,19 +170,21 @@ export function CompletePDFToWordPage() {
 
     try {
       console.log(`\n📤 UPLOAD ATTEMPT #${attemptNumber + 1}`);
+      console.log(`   Uploading to /api/upload`);
       console.log(`   File: ${fileToUpload.name} (${formatFileSize(fileToUpload.size)})`);
 
       const result = await uploadFile(fileToUpload);
 
-      console.log(`   ✅ Upload complete! File ID: ${result.fileId}`);
+      console.log(`   ✅ Upload complete!`);
+      console.log(`   File ID: ${result.fileId}`);
+      console.log(`   Metadata:`, result);
+
       setFileId(result.fileId);
+      setFileMeta(result);
       setRetryAttempt(0);
+      setStep('configure');
 
-      // Generate mock preview pages
-      await generatePreview(result.fileId);
-
-      setStep('preview');
-      toast.showSuccess('Upload Complete', 'Generating preview...');
+      toast.showSuccess('Upload Complete', 'Your PDF is ready for conversion');
     } catch (err: any) {
       console.error('   ❌ Upload failed');
 
@@ -160,11 +197,10 @@ export function CompletePDFToWordPage() {
       setError(detailedError);
       logError(detailedError);
 
-      // Check if we can retry
+      // Retry logic
       const maxAttempts = 3;
       if (isRetryable(detailedError, maxAttempts, attemptNumber + 1)) {
         const delay = getRetryDelay(RetryStrategy.EXPONENTIAL_BACKOFF, attemptNumber + 1);
-        console.log(`   🔄 Retrying in ${delay}ms...`);
 
         toast.showWarning(
           'Upload Failed - Retrying',
@@ -199,67 +235,7 @@ export function CompletePDFToWordPage() {
   };
 
   /**
-   * Generate preview (mock for now - backend would provide real thumbnails)
-   */
-  const generatePreview = async (uploadedFileId: string) => {
-    console.log('\n🖼️  GENERATING PREVIEW');
-    console.log(`   File ID: ${uploadedFileId}`);
-
-    // Mock: Generate 10 pages as example
-    // In production, backend would return actual thumbnail URLs
-    const mockPages: Page[] = Array.from({ length: 10 }, (_, i) => ({
-      id: `page-${i + 1}`,
-      pageNumber: i + 1,
-      thumbnailUrl: `https://via.placeholder.com/150x200/667eea/ffffff?text=Page+${i + 1}`,
-      width: 612,
-      height: 792,
-      selected: false,
-    }));
-
-    setPages(mockPages);
-    console.log(`   ✅ Generated ${mockPages.length} page previews`);
-  };
-
-  /**
-   * Handle page selection
-   */
-  const handlePageSelect = (pageId: string) => {
-    setSelectedPages((prev) => {
-      const newSet = new Set(prev);
-      newSet.add(pageId);
-      return newSet;
-    });
-
-    setPages((prev) =>
-      prev.map((p) => (p.id === pageId ? { ...p, selected: true } : p))
-    );
-  };
-
-  const handlePageDeselect = (pageId: string) => {
-    setSelectedPages((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(pageId);
-      return newSet;
-    });
-
-    setPages((prev) =>
-      prev.map((p) => (p.id === pageId ? { ...p, selected: false } : p))
-    );
-  };
-
-  const handleSelectAll = () => {
-    const allPageIds = new Set(pages.map((p) => p.id));
-    setSelectedPages(allPageIds);
-    setPages((prev) => prev.map((p) => ({ ...p, selected: true })));
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedPages(new Set());
-    setPages((prev) => prev.map((p) => ({ ...p, selected: false })));
-  };
-
-  /**
-   * Process with retry
+   * Step 3: Request conversion
    */
   const handleProcess = async (attemptNumber: number = 0) => {
     if (!fileId) return;
@@ -268,62 +244,53 @@ export function CompletePDFToWordPage() {
     setError(null);
     setProgress(0);
     setStep('processing');
+    setProcessingState('queued');
 
     try {
-      console.log(`\n🔧 PROCESSING ATTEMPT #${attemptNumber + 1}`);
-      console.log('   Tool: PDF to Word (pdf-to-word)');
-      console.log('   Settings:', {
+      console.log(`\n🔧 CONVERSION REQUEST #${attemptNumber + 1}`);
+      console.log(`   POST /api/process`);
+      console.log(`   File ID: ${fileId}`);
+      console.log(`   Options:`, {
         outputFormat,
-        pageRange,
-        selectedPages: pageRange === 'selected' ? Array.from(selectedPages) : 'all',
         ocrEnabled,
+        ocrLanguage: ocrEnabled ? ocrLanguage : null,
         preserveLayout,
-        includeImages,
+        password: password ? '***' : null,
       });
 
-      const settings: any = {
-        outputFormat,
-        ocrEnabled,
-        preserveLayout,
-        includeImages,
+      // Step 3: POST /api/process
+      const payload = {
+        fileId,
+        tool: 'pdf-to-word',
+        options: {
+          outputFormat,
+          ocrEnabled,
+          ocrLanguage: ocrEnabled ? ocrLanguage : undefined,
+          preserveLayout,
+          password: password || undefined,
+        },
       };
 
-      if (pageRange === 'selected' && selectedPages.size > 0) {
-        settings.pages = Array.from(selectedPages)
-          .map((id) => parseInt(id.replace('page-', '')))
-          .sort((a, b) => a - b);
-      }
+      const response = await apiClient.post('/process', payload);
+      const newRequestId = response.data.data.requestId;
 
-      const jobId = await processTool('pdf-to-word', {
-        fileIds: fileId,
-        settings,
-      });
+      console.log(`   ✅ Conversion started!`);
+      console.log(`   Request ID: ${newRequestId}`);
 
-      console.log(`   ✅ Job created: ${jobId}`);
-
-      const result = await pollJobStatus(jobId, (status) => {
-        console.log(`   Progress: ${status.progress}% - ${status.currentStep}`);
-        setProgress(status.progress);
-        setCurrentStep(status.currentStep);
-      });
-
-      console.log(`   ✅ Processing complete!`);
-      setOutputFileId(result.outputFileId!);
-      setStep('complete');
+      setRequestId(newRequestId);
       setRetryAttempt(0);
 
-      toast.showSuccess(
-        'Conversion Complete',
-        'Your PDF has been converted to Word successfully'
-      );
+      toast.showInfo('Converting', 'Your PDF is being converted to Word...');
+
+      // Step 4: Start polling
+      await pollStatus(newRequestId);
     } catch (err: any) {
-      console.error('   ❌ Processing failed');
+      console.error('   ❌ Conversion request failed');
 
       const detailedError = classifyError(err, {
         step: 'processing',
-        toolId: 'pdf-to-word',
         fileId,
-        settings: { outputFormat, pageRange, ocrEnabled, preserveLayout, includeImages },
+        options: { outputFormat, ocrEnabled, ocrLanguage, preserveLayout },
         attempt: attemptNumber + 1,
       });
 
@@ -335,7 +302,7 @@ export function CompletePDFToWordPage() {
         const delay = getRetryDelay(RetryStrategy.EXPONENTIAL_BACKOFF, attemptNumber + 1);
 
         toast.showWarning(
-          'Processing Failed - Retrying',
+          'Conversion Failed - Retrying',
           `Attempt ${attemptNumber + 1}/${maxAttempts}. Retrying in ${delay / 1000}s...`
         );
 
@@ -350,15 +317,10 @@ export function CompletePDFToWordPage() {
           detailedError.message,
           detailedError.userMessage,
           detailedError.technicalDetails,
-          detailedError.retryStrategy === RetryStrategy.REFRESH_FILE
-            ? {
-                label: 'Upload New File',
-                onClick: handleReset,
-              }
-            : {
-                label: 'Try Again',
-                onClick: () => handleProcess(0),
-              }
+          {
+            label: 'Try Again',
+            onClick: () => handleProcess(0),
+          }
         );
       }
     } finally {
@@ -367,17 +329,131 @@ export function CompletePDFToWordPage() {
   };
 
   /**
-   * Download result
+   * Step 4: Poll status
+   */
+  const pollStatus = async (pollRequestId: string) => {
+    console.log(`\n📊 POLLING STATUS`);
+    console.log(`   Request ID: ${pollRequestId}`);
+    console.log(`   Polling every 2 seconds...`);
+
+    let pollCount = 0;
+
+    return new Promise<void>((resolve, reject) => {
+      const checkStatus = async () => {
+        try {
+          pollCount++;
+          console.log(`   Poll #${pollCount} - GET /api/status/${pollRequestId}`);
+
+          const response = await apiClient.get(`/status/${pollRequestId}`);
+          const status: StatusResponse = response.data.data;
+
+          console.log(`   State: ${status.state} (${status.progress}%)`);
+          console.log(`   Message: ${status.message}`);
+
+          setProcessingState(status.state);
+          setProgress(status.progress);
+          setStatusMessage(status.message);
+
+          // Update UI based on state
+          if (status.state === 'done') {
+            console.log(`   ✅ Conversion complete!`);
+            console.log(`   Output file token: ${status.outputFileToken}`);
+
+            setOutputFileToken(status.outputFileToken!);
+            setStep('complete');
+
+            toast.showSuccess(
+              'Conversion Complete',
+              'Your Word document is ready for download'
+            );
+
+            resolve();
+          } else if (status.state === 'failed') {
+            console.error(`   ❌ Conversion failed: ${status.error}`);
+
+            const detailedError = classifyError(
+              { step: 'processing', message: status.error || 'Conversion failed' },
+              { requestId: pollRequestId, state: status.state }
+            );
+
+            setError(detailedError);
+            logError(detailedError);
+            setStep('configure');
+
+            toast.showError(
+              'Conversion Failed',
+              status.error || 'An error occurred during conversion',
+              undefined,
+              {
+                label: 'Try Again',
+                onClick: () => handleProcess(0),
+              }
+            );
+
+            reject(new Error(status.error));
+          } else {
+            // Continue polling
+            setTimeout(checkStatus, 2000);
+          }
+        } catch (err: any) {
+          console.error(`   ❌ Status check failed:`, err);
+
+          const detailedError = classifyError(err, {
+            step: 'polling',
+            requestId: pollRequestId,
+            pollCount,
+          });
+
+          logError(detailedError);
+
+          // Retry polling once on network error
+          if (pollCount < 50) {
+            // Max 100 seconds
+            setTimeout(checkStatus, 2000);
+          } else {
+            setError(detailedError);
+            reject(err);
+          }
+        }
+      };
+
+      checkStatus();
+    });
+  };
+
+  /**
+   * Step 5: Download result
    */
   const handleDownload = async () => {
-    if (!outputFileId) return;
+    if (!outputFileToken) return;
 
     try {
       console.log('\n📥 DOWNLOADING FILE');
-      await downloadFile(outputFileId, `converted.${outputFormat}`);
+      console.log(`   GET /api/download/${outputFileToken}`);
+
+      const response = await apiClient.get(`/download/${outputFileToken}`, {
+        responseType: 'blob',
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `converted.${outputFormat}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      console.log(`   ✅ Download started`);
       toast.showSuccess('Download Started', 'Your file is being downloaded');
     } catch (err: any) {
-      const detailedError = classifyError(err, { step: 'download', outputFileId });
+      console.error('   ❌ Download failed');
+
+      const detailedError = classifyError(err, {
+        step: 'download',
+        fileToken: outputFileToken,
+      });
+
       logError(detailedError);
 
       toast.showError(
@@ -397,14 +473,15 @@ export function CompletePDFToWordPage() {
    */
   const handleReset = () => {
     console.log('\n🔄 RESETTING WORKFLOW');
-    setStep('intake');
+    setStep('upload');
     setFile(null);
     setFileId(null);
-    setPages([]);
-    setSelectedPages(new Set());
+    setFileMeta(null);
+    setRequestId(null);
+    setOutputFileToken(null);
     setProgress(0);
-    setCurrentStep('');
-    setOutputFileId(null);
+    setProcessingState('queued');
+    setStatusMessage('');
     setError(null);
     setRetryAttempt(0);
 
@@ -418,7 +495,7 @@ export function CompletePDFToWordPage() {
       <div className="workflow-header">
         <h1 className="workflow-title">PDF to Word Converter</h1>
         <p className="workflow-description">
-          Convert PDF documents to editable Word files with advanced options
+          Convert PDF documents to editable Word files with OCR support
         </p>
       </div>
 
@@ -468,12 +545,12 @@ export function CompletePDFToWordPage() {
       )}
 
       <div className="workflow-content">
-        {/* Step 1: File Intake */}
-        {step === 'intake' && (
+        {/* Step 1: Upload */}
+        {step === 'upload' && (
           <div className="workflow-step">
-            <h2>Select Your PDF File</h2>
+            <h2>Upload Your PDF File</h2>
             <p className="step-description">
-              Choose a PDF file to convert to Word format
+              Select a PDF file to convert to Word format
             </p>
 
             <div
@@ -517,75 +594,24 @@ export function CompletePDFToWordPage() {
                 <div className="file-details">
                   <div className="file-name">{file.name}</div>
                   <div className="file-size">{formatFileSize(file.size)}</div>
+                  {fileMeta && (
+                    <div className="file-meta">
+                      {fileMeta.pages && <span>{fileMeta.pages} pages</span>}
+                      {fileMeta.format && <span>• {fileMeta.format}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Step 2: Preview & Select Pages */}
-        {step === 'preview' && (
-          <div className="workflow-step">
-            <h2>Preview & Select Pages</h2>
-            <p className="step-description">
-              Review your PDF and select which pages to convert
-            </p>
-
-            <div className="page-range-selector">
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="pageRange"
-                  value="all"
-                  checked={pageRange === 'all'}
-                  onChange={() => setPageRange('all')}
-                />
-                <span>Convert all pages ({pages.length} pages)</span>
-              </label>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="pageRange"
-                  value="selected"
-                  checked={pageRange === 'selected'}
-                  onChange={() => setPageRange('selected')}
-                />
-                <span>Convert selected pages only</span>
-              </label>
-            </div>
-
-            {pages.length > 0 && (
-              <PageGrid
-                pages={pages}
-                onPageSelect={handlePageSelect}
-                onPageDeselect={handlePageDeselect}
-                onSelectAll={handleSelectAll}
-                onDeselectAll={handleDeselectAll}
-                showControls={pageRange === 'selected'}
-              />
-            )}
-
-            <div className="step-actions">
-              <button className="btn btn-secondary" onClick={handleReset}>
-                Back
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep('configure')}
-                disabled={pageRange === 'selected' && selectedPages.size === 0}
-              >
-                Continue to Settings
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Configure Options */}
+        {/* Step 2: Configure Options */}
         {step === 'configure' && (
           <div className="workflow-step">
             <h2>Configure Conversion Options</h2>
             <p className="step-description">
-              Customize how your PDF will be converted
+              Customize how your PDF will be converted to Word
             </p>
 
             <div className="settings-panel">
@@ -612,28 +638,8 @@ export function CompletePDFToWordPage() {
                 </div>
               </div>
 
-              {/* Options */}
+              {/* OCR Options */}
               <div className="setting-group">
-                <label className="setting-label">Conversion Options</label>
-
-                <label className="setting-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={preserveLayout}
-                    onChange={(e) => setPreserveLayout(e.target.checked)}
-                  />
-                  <span>Preserve original layout</span>
-                </label>
-
-                <label className="setting-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={includeImages}
-                    onChange={(e) => setIncludeImages(e.target.checked)}
-                  />
-                  <span>Include images</span>
-                </label>
-
                 <label className="setting-checkbox">
                   <input
                     type="checkbox"
@@ -642,6 +648,50 @@ export function CompletePDFToWordPage() {
                   />
                   <span>Enable OCR for scanned PDFs</span>
                 </label>
+                <p className="setting-hint">
+                  Extract text from images and scanned documents
+                </p>
+              </div>
+
+              {ocrEnabled && (
+                <div className="setting-group indent">
+                  <label className="setting-label">OCR Language</label>
+                  <select
+                    className="setting-select"
+                    value={ocrLanguage}
+                    onChange={(e) => setOcrLanguage(e.target.value)}
+                  >
+                    {languages.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Other Options */}
+              <div className="setting-group">
+                <label className="setting-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={preserveLayout}
+                    onChange={(e) => setPreserveLayout(e.target.checked)}
+                  />
+                  <span>Preserve original layout</span>
+                </label>
+              </div>
+
+              {/* Password (optional) */}
+              <div className="setting-group">
+                <label className="setting-label">PDF Password (if protected)</label>
+                <input
+                  type="password"
+                  className="setting-input"
+                  placeholder="Enter password (optional)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
 
               {/* Summary */}
@@ -649,35 +699,33 @@ export function CompletePDFToWordPage() {
                 <h4>Conversion Summary</h4>
                 <div className="summary-grid">
                   <div className="summary-item">
-                    <span className="summary-label">Output Format:</span>
+                    <span className="summary-label">Output:</span>
                     <span className="summary-value">{outputFormat.toUpperCase()}</span>
                   </div>
                   <div className="summary-item">
-                    <span className="summary-label">Pages:</span>
-                    <span className="summary-value">
-                      {pageRange === 'all'
-                        ? `All ${pages.length} pages`
-                        : `${selectedPages.size} selected pages`}
-                    </span>
-                  </div>
-                  <div className="summary-item">
-                    <span className="summary-label">Layout:</span>
-                    <span className="summary-value">
-                      {preserveLayout ? 'Preserved' : 'Optimized for editing'}
-                    </span>
+                    <span className="summary-label">OCR:</span>
+                    <span className="summary-value">{ocrEnabled ? 'Enabled' : 'Disabled'}</span>
                   </div>
                   {ocrEnabled && (
                     <div className="summary-item">
-                      <span className="summary-label">OCR:</span>
-                      <span className="summary-value">Enabled</span>
+                      <span className="summary-label">Language:</span>
+                      <span className="summary-value">
+                        {languages.find((l) => l.code === ocrLanguage)?.name}
+                      </span>
                     </div>
                   )}
+                  <div className="summary-item">
+                    <span className="summary-label">Layout:</span>
+                    <span className="summary-value">
+                      {preserveLayout ? 'Preserved' : 'Optimized'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="step-actions">
-              <button className="btn btn-secondary" onClick={() => setStep('preview')}>
+              <button className="btn btn-secondary" onClick={handleReset}>
                 Back
               </button>
               <button
@@ -691,32 +739,52 @@ export function CompletePDFToWordPage() {
           </div>
         )}
 
-        {/* Step 4: Processing */}
+        {/* Step 3: Processing */}
         {step === 'processing' && (
           <div className="workflow-step">
             <h2>Converting Your PDF</h2>
             <p className="step-description">
-              Please wait while we convert your PDF to Word
-              {retryAttempt > 0 && ` (Attempt ${retryAttempt + 1})`}
+              {stateLabels[processingState]}
             </p>
 
             <div className="processing-area">
+              <div className="processing-state-indicator">
+                <div className="state-steps">
+                  {(['queued', 'processing', 'ocr', 'converting', 'finalizing', 'done'] as ProcessingState[]).map((state) => (
+                    <div
+                      key={state}
+                      className={`state-step ${
+                        state === processingState
+                          ? 'active'
+                          : ['queued', 'processing', 'ocr', 'converting', 'finalizing'].indexOf(state) <
+                            ['queued', 'processing', 'ocr', 'converting', 'finalizing'].indexOf(processingState)
+                          ? 'completed'
+                          : ''
+                      }`}
+                    >
+                      <div className="state-dot"></div>
+                      <div className="state-label">{state}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <ProgressBar
                 progress={progress}
-                currentStep={currentStep}
+                currentStep={statusMessage}
                 showPercentage
               />
             </div>
 
             <div className="processing-info">
-              <p>⏳ This may take a few moments depending on file size and options selected</p>
+              <p>⏳ This may take a few moments depending on file size</p>
               <p>💡 Do not close this window or navigate away</p>
               {ocrEnabled && <p>🔍 OCR processing may take additional time</p>}
             </div>
           </div>
         )}
 
-        {/* Step 5: Complete */}
+        {/* Step 4: Complete */}
         {step === 'complete' && (
           <div className="workflow-step">
             <div className="success-icon">✅</div>
@@ -736,10 +804,8 @@ export function CompletePDFToWordPage() {
               <div className="info-card">
                 <div className="info-icon">📋</div>
                 <div className="info-content">
-                  <div className="info-label">Pages Converted</div>
-                  <div className="info-value">
-                    {pageRange === 'all' ? pages.length : selectedPages.size}
-                  </div>
+                  <div className="info-label">Status</div>
+                  <div className="info-value">Ready to Download</div>
                 </div>
               </div>
             </div>
@@ -751,6 +817,10 @@ export function CompletePDFToWordPage() {
               <button className="btn btn-secondary" onClick={handleReset}>
                 Convert Another PDF
               </button>
+            </div>
+
+            <div className="cleanup-notice">
+              <p>🔒 Your files will be automatically deleted from our servers after download</p>
             </div>
           </div>
         )}
