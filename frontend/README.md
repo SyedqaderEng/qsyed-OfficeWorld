@@ -1,179 +1,101 @@
-# Qsyed Frontend - File Processing Services
+# Qsyed - Subscription-Based SaaS Frontend
 
-Modern React TypeScript frontend for Qsyed file processing services with integrated pricing plans.
+A modern, subscription-based SaaS frontend for document processing with Stripe integration.
 
-## Features
+## 🚀 Features
 
-- **Pricing Plans Integration**: Free, Basic, and Pro plans displayed on landing page and dashboard
-- **User Plan Indicator**: Shows current plan (Free/Basic/Pro) when logged in
-- **Navigation Menu**: Pricing section accessible from menu bar on both landing and dashboard
-- **File Processing**: Upload and process files with 192+ tools
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Landing Page** with pricing plans (Free, Pro $5/mo, Premium $10/mo)
+- **Authentication** (Email/Password + Google OAuth)
+- **Stripe Integration** for subscriptions
+- **Dashboard** with plan-based feature gating
+- **Subscription Management** (upgrade, cancel, billing portal)
+- **Responsive Design** with Tailwind CSS
 
-## Pricing Plans
+## 📋 Tech Stack
 
-| Plan | Price | Max Requests/Day | Max File Size |
-|------|-------|------------------|---------------|
-| Free | $0 | 5 | 10 MB |
-| Basic | $9.99/month | 100 | 50 MB |
-| Pro | $29.99/month | 1000 | 200 MB |
+- React 18 + TypeScript
+- Vite
+- React Router
+- Zustand (state management)
+- Axios
+- Stripe
+- Tailwind CSS
+- Lucide React (icons)
+- React Hot Toast (notifications)
 
-## Installation
+## 🛠️ Setup
 
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Create environment file
+# 2. Configure .env file
 cp .env.example .env
+# Edit .env with your API URL, Stripe key, Google OAuth client ID
 
-# Start development server
+# 3. Run development server
 npm run dev
 ```
 
-The app will run on http://localhost:3001
+## 🔄 Complete User Flow
 
-## Project Structure
+**Landing (/) → Pricing → Signup (/signup?plan=pro) → Stripe Checkout → Dashboard**
+
+1. User selects plan on landing page
+2. Redirected to signup with plan pre-selected
+3. Creates account with email or Google
+4. If paid plan: redirected to Stripe checkout
+5. After payment: lands on dashboard with full access
+6. System automatically detects subscription tier and gates features
+
+## 🎯 Subscription Tiers
+
+| Feature | Free | Pro ($5) | Premium ($10) |
+|---------|------|----------|---------------|
+| Documents/month | 5 | 100 | Unlimited |
+| OCR | ❌ | ✅ | ✅ |
+| Batch processing | ❌ | ✅ | ✅ |
+| API access | ❌ | ❌ | ✅ |
+
+## 🔌 Backend API Endpoints Required
 
 ```
-frontend/
-├── src/
-│   ├── api/              # API client and services
-│   │   ├── client.ts     # Axios client with auth interceptors
-│   │   ├── upload.ts     # File upload services
-│   │   ├── tools.ts      # Tool processing services
-│   │   ├── jobs.ts       # Job status polling
-│   │   └── download.ts   # File download
-│   ├── components/       # Reusable components
-│   │   ├── Navbar.tsx    # Navigation with pricing link
-│   │   └── Pricing.tsx   # Pricing plans display
-│   ├── context/          # React contexts
-│   │   └── AuthContext.tsx  # Auth & user plan management
-│   ├── constants/        # App constants
-│   │   └── pricing.ts    # Pricing plans configuration
-│   ├── pages/            # Page components
-│   │   ├── LandingPage.tsx  # Home with pricing section
-│   │   ├── Dashboard.tsx    # Dashboard with plan indicator
-│   │   ├── Login.tsx
-│   │   └── Signup.tsx
-│   ├── types/            # TypeScript types
-│   ├── App.tsx           # Main app with routing
-│   └── main.tsx          # Entry point
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+# Auth
+POST /api/auth/signup
+POST /api/auth/login
+GET  /api/auth/me
+GET  /api/auth/google
+
+# Subscription
+GET  /api/subscription/status
+POST /api/subscription/checkout
+POST /api/subscription/portal
+POST /api/subscription/cancel
+POST /api/subscription/webhook
+
+# Profile
+GET    /api/profile
+PUT    /api/profile
+DELETE /api/profile
 ```
 
-## Key Features
+## 📁 Key Files
 
-### 1. Pricing Plans Display
-- Shown on landing page and accessible from navigation menu
-- Three tiers: Free, Basic, Pro
-- Visual indicators for current plan and featured plans
+- `src/pages/Landing.tsx` - Landing page with pricing
+- `src/pages/Dashboard.tsx` - Dashboard with feature gating
+- `src/pages/Subscribe.tsx` - Stripe checkout flow
+- `src/store/authStore.ts` - Authentication state
+- `src/lib/api.ts` - API client with auth interceptors
 
-### 2. User Plan Indicator
-- Displays current plan badge in navigation bar when logged in
-- Shows "Free Plan" indicator prominently on dashboard
-- Plan-specific limits displayed (requests/day, max file size)
-
-### 3. Navigation Menu
-- "Pricing" link in menu bar (landing & dashboard)
-- Smooth scroll to pricing section
-- User plan badge visible when authenticated
-
-### 4. File Processing
-- Upload files via drag-and-drop or file picker
-- Select from 192+ processing tools
-- Real-time progress tracking
-- Auto-download on completion
-
-## Environment Variables
-
-Create a `.env` file (or copy from `.env.example`):
-
-```env
-# Backend API URL
-VITE_API_URL=http://localhost:3000/api
-
-# Disable auth for local development (backend doesn't require authentication yet)
-VITE_REQUIRE_AUTH=false
-```
-
-**Options:**
-- `VITE_API_URL`: Your backend API base URL (default: `http://localhost:3000/api`)
-- `VITE_REQUIRE_AUTH`: Set to `false` for local dev without authentication, `true` when backend has auth (default: `true`)
-
-## Available Scripts
+## 🚀 Build & Deploy
 
 ```bash
-# Development
-npm run dev
-
-# Build for production
 npm run build
-
-# Preview production build
-npm run preview
 ```
 
-## API Integration
+Deploy `dist/` folder to Vercel, Netlify, or any static hosting.
 
-The frontend integrates with the backend API for:
-
-- File uploads (single & multiple)
-- Tool processing (192 tools across 8 categories)
-- Job status polling with progress updates
-- File downloads
-- User authentication
-- Plan management
-
-## Customization
-
-### Modify Pricing Plans
-
-Edit `src/constants/pricing.ts`:
-
-```typescript
-export const PRICING_PLANS: PricingPlan[] = [
-  {
-    name: 'Free',
-    price: 0,
-    maxRequests: 5,
-    maxFileSize: '10 MB',
-    features: [...],
-  },
-  // Add more plans
-];
-```
-
-### Add New Tools
-
-Tools are automatically loaded from the backend API. No frontend changes needed.
-
-## Authentication
-
-The app uses JWT tokens stored in localStorage:
-- `authToken`: JWT authentication token
-- `user`: User object with plan information
-
-Mock authentication is implemented for development. Replace with actual API calls in production.
-
-## Deployment
-
-```bash
-# Build for production
-npm run build
-
-# The build folder will contain static files ready for deployment
-# Deploy to Vercel, Netlify, or any static hosting service
-```
-
-## Backend API
-
-This frontend requires the Qsyed backend API running on http://localhost:3000
-
-See [API_DOCUMENTATION.md](../API_DOCUMENTATION.md) for complete API reference.
-
-## License
-
-MIT
+**Required environment variables in production:**
+- `VITE_API_URL`
+- `VITE_STRIPE_PUBLIC_KEY`
+- `VITE_GOOGLE_CLIENT_ID`

@@ -1,55 +1,41 @@
-export type PlanType = 'Free' | 'Basic' | 'Pro';
-
-export interface PricingPlan {
-  name: PlanType;
-  price: number;
-  interval: 'month' | 'year';
-  maxRequests: number;
-  maxFileSize: string;
-  features: string[];
-}
-
 export interface User {
   id: string;
   email: string;
   name: string;
-  plan: PlanType;
+  emailVerified: boolean;
+  subscriptionTier: 'free' | 'pro' | 'premium';
+  subscriptionStatus: 'active' | 'canceled' | 'past_due' | 'none';
   createdAt: string;
 }
 
-export interface UploadResponse {
-  fileId: string;
-  originalName: string;
-  size: number;
-  mimeType: string;
-  path: string;
-  uploadedAt: string;
+export interface SubscriptionStatus {
+  tier: 'free' | 'pro' | 'premium';
+  status: 'active' | 'canceled' | 'past_due' | 'none';
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd?: boolean;
 }
 
-export interface JobStatus {
-  jobId: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  currentStep: string;
-  downloadUrl?: string;
-  outputFileId?: string;
-  errorMessage?: string;
-  createdAt: string;
-  completedAt?: string;
-}
-
-export interface ProcessRequest {
-  fileIds: string | string[];
-  settings?: Record<string, any>;
-  userId?: string;
-}
-
-export interface ToolDefinition {
-  id: string;
+export interface PricingPlan {
+  id: 'free' | 'pro' | 'premium';
   name: string;
-  category: string;
-  description: string;
-  acceptedFormats: string[];
-  multipleFiles: boolean;
-  settings?: any[];
+  price: number;
+  interval: 'month';
+  features: string[];
+  popular?: boolean;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  data: {
+    user: User;
+    token: string;
+  };
+  message?: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
 }
